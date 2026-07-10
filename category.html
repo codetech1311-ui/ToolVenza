@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Category</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="tools.html">Tools</a>
+      <a class="nav-link" href="sell.html">Sell</a>
+      <a class="nav-link" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div id="cat-header" class="cat-header panel"></div>
+    <section id="tools-list" class="tool-grid"></section>
+  </main>
+
+  <footer class="footer muted">Demo</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  function currentParam(name){
+    return new URLSearchParams(location.search).get(name);
+  }
+
+  const catId = currentParam('cat') || (window.DATA && window.DATA.categories && window.DATA.categories[0].id);
+  const cat = (window.DATA && window.DATA.categories && window.DATA.categories.find(c=>c.id === catId)) || { name: 'Category', color:'#888', followers:0 };
+
+  document.getElementById('cat-header').innerHTML = `
+    <h1 style="color:${cat.color}">${cat.name}</h1>
+    <p class="muted">${cat.followers.toLocaleString()} followers • ${ (window.DATA && window.DATA.tools && window.DATA.tools[cat.id] ? window.DATA.tools[cat.id].length : 0) } seeded tools</p>
+    <div style="margin-top:10px"><a class="btn small" href="tools.html">Back to categories</a></div>
+  `;
+
+  const listEl = document.getElementById('tools-list');
+
+  function visitFor(item){
+    if(item && item.url) return item.url;
+    const name = (item && (item.title || item.name)) || 'AI tool';
+    return 'https://www.google.com/search?q=' + encodeURIComponent(name);
+  }
+  function displayName(item){ return item.title || item.name || 'Untitled'; }
+
+  // We'll expose a refresh hook so app.js can trigger UI updates after clicks
+  window.__refreshView = function(){ renderList(); };
+
+  function renderList(){
+    const userListings = (typeof loadListings === 'function') ? loadListings().filter(l => l.category === cat.id) : [];
+    const seeded = (window.DATA && window.DATA.tools && window.DATA.tools[cat.id]) ? window.DATA.tools[cat.id].map(x => (x.id?Object.assign({},x,{title:x.title||x.name}):x)) : [];
+    // normalize seeded entries to same shape (title + id if present)
+    // combine user listings first so user entries show too
+    const combined = userListings.concat(seeded);
+
+    // sort by click count descending, fallback to title
+    combined.sort((a,b) => {
+      const ca = getClickCount(a.id || (a.title||a.name));
+      const cb = getClickCount(b.id || (b.title||b.name));
+      if(cb !== ca) return cb - ca;
+      const na = (a.title || a.name || '').toLowerCase();
+      const nb = (b.title || b.name || '').toLowerCase();
+      return na < nb ? -1 : na > nb ? 1 : 0;
+    });
+
+    listEl.innerHTML = '';
+    if(combined.length === 0){
+      listEl.innerHTML = '<p class="muted">Nothing here yet — be the first to list one.</p>';
+      return;
+    }
+
+    combined.forEach(t => {
+      const visit = visitFor(t);
+      const price = (t.price && Number(t.price) > 0) ? ('$' + Number(t.price).toFixed(2)) : 'Free';
+      const seller = t.seller || (t.name ? t.name.split(' ')[0] : '@demo');
+      const desc = t.desc || '';
+      const clicks = getClickCount(t.id || (t.title||t.name));
+      // create card element (avoid inline handlers)
+      const card = document.createElement('div');
+      card.className = 'tool-card';
+      const inner = document.createElement('div');
+      inner.innerHTML = `
+        <div class="tool-top">
+          <div class="tool-meta-left">
+            <h3 class="tool-title">${escapeHtml(displayName(t))}</h3>
+            <p class="muted small">${escapeHtml(desc)}</p>
+          </div>
+          <div class="tool-meta-right">
+            <div class="price">${price}</div>
+            <div class="seller muted">${escapeHtml(seller)}</div>
+          </div>
+        </div>
+        <div class="tool-actions-row"></div>
+      `;
+      // Visit button (with click tracking)
+      const actions = inner.querySelector('.tool-actions-row');
+      const visitBtn = document.createElement('a');
+      visitBtn.className = 'btn small';
+      visitBtn.href = visit;
+      visitBtn.target = '_blank';
+      visitBtn.rel = 'noopener noreferrer';
+      visitBtn.textContent = 'Visit';
+      visitBtn.addEventListener('click', function(e){
+        e.preventDefault();
+        // increment click and re-render
+        trackAndVisit(t.id || (t.title||t.name), visit);
+      });
+      const sellBtn = document.createElement('a');
+      sellBtn.className = 'btn outline small';
+      sellBtn.href = 'sell.html';
+      sellBtn.textContent = 'Sell like this';
+      // click count badge
+      const countBadge = document.createElement('span');
+      countBadge.className = 'muted small';
+      countBadge.style.marginLeft = '12px';
+      countBadge.textContent = `${clicks} clicks`;
+
+      actions.appendChild(visitBtn);
+      actions.appendChild(sellBtn);
+      actions.appendChild(countBadge);
+
+      card.appendChild(inner);
+      listEl.appendChild(card);
+    });
+  }
+
+  renderList();
+
+  function escapeHtml(s){
+    return String(s || '').replace(/[&<>"']/g, function(m){ return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]); });
+  }
+</script>
+</body>
+</html>

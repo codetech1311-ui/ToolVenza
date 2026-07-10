@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Promote</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="tools.html">Tools</a>
+      <a class="nav-link" href="sell.html">Sell</a>
+      <a class="nav-link" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <h2>Promote a listing</h2>
+      <p class="muted">Simulate a promotion. You pay only for delivered impressions; impressions are capped by the category audience size.</p>
+
+      <div class="form-row">
+        <label>Your listing</label>
+        <select id="your-listing"></select>
+      </div>
+
+      <div class="form-row">
+        <label>Daily budget (USD)</label>
+        <div class="row">
+          <input id="budget" type="number" min="1" step="1" value="25" />
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn ghost preset" data-v="5">$5</button>
+            <button class="btn ghost preset" data-v="25">$25</button>
+            <button class="btn ghost preset" data-v="100">$100</button>
+            <button class="btn ghost preset" data-v="500">$500</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="reach-block">
+          <div class="kicker">Live reach estimate</div>
+          <div>Estimated impressions/day: <strong id="reach-count">—</strong></div>
+          <div class="reach-bar"><div id="reach-fill" class="reach-fill"></div></div>
+          <div id="cap-note" class="hint"></div>
+          <div class="hint" style="margin-top:8px">Fairness note: if multiple sellers promote to the same category, delivery rotates by budget weight so no one buys out the entire room.</div>
+        </div>
+      </div>
+
+      <div class="form-row" style="display:flex;gap:8px;align-items:center">
+        <button id="pay-promote" class="btn primary">Simulate & Mark Boosted</button>
+        <a id="cancel" class="btn outline" href="shop.html">Cancel</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted">Demo — promotions only simulated in your browser.</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  function findListing(id){ return loadListings().find(x=>x.id===id) }
+  function getParam(name){ return new URLSearchParams(location.search).get(name) }
+
+  const sel = document.getElementById('your-listing');
+  const budgetInput = document.getElementById('budget');
+  const reachCount = document.getElementById('reach-count');
+  const reachFill = document.getElementById('reach-fill');
+  const capNote = document.getElementById('cap-note');
+
+  function populateListings(selectedId){
+    const list = loadListings();
+    sel.innerHTML = '';
+    if(list.length===0){
+      sel.innerHTML = `<option value="">No listings — create one</option>`;
+      updateSummary();
+      return;
+    }
+    list.forEach(l=> sel.innerHTML += `<option value="${l.id}">${l.title} — ${getCategory(l.category).name}</option>`);
+    if(selectedId){
+      sel.value = selectedId;
+    }
+    updateSummary();
+  }
+
+  const preId = getParam('id');
+  populateListings(preId);
+
+  document.querySelectorAll('.preset').forEach(b=>{
+    b.addEventListener('click', (e)=>{
+      budgetInput.value = e.currentTarget.dataset.v;
+      updateSummary();
+    });
+  });
+
+  sel.addEventListener('change', updateSummary);
+  budgetInput.addEventListener('input', updateSummary);
+
+  function updateSummary(){
+    const id = sel.value;
+    const budget = Math.max(0, parseFloat(budgetInput.value) || 0);
+    if(!id){
+      reachCount.textContent = '—';
+      reachFill.style.width = '0%';
+      capNote.textContent = 'Choose a listing to see reach and cost estimates.';
+      return;
+    }
+    const listing = findListing(id);
+    if(!listing){ reachCount.textContent='—'; capNote.textContent='Listing not found.'; return; }
+    const cat = getCategory(listing.category);
+    const impressions = Math.floor(budget / 0.05);
+    const capped = Math.min(impressions, cat.followers);
+    const cost = (capped * 0.05);
+    const pct = Math.round((capped / Math.max(1, cat.followers)) * 100);
+    reachCount.textContent = `${capped.toLocaleString()} / ${cat.followers.toLocaleString()}`;
+    reachFill.style.width = pct + '%';
+    if(impressions > cat.followers){
+      capNote.textContent = `You've reached the whole room — estimated delivered cost $${cost.toFixed(2)}. You'd save $${(budget - cost).toFixed(2)} vs your stated budget.`;
+    } else {
+      capNote.textContent = `Estimated delivered cost: $${cost.toFixed(2)} (impressions × $0.05).`;
+    }
+  }
+
+  document.getElementById('pay-promote').addEventListener('click', async ()=>{
+    const id = sel.value;
+    if(!id){ alert('Choose a listing to promote.'); return; }
+    const budget = Math.max(0, parseFloat(budgetInput.value) || 0);
+    if(budget <= 0){ alert('Enter a budget greater than $0.'); return; }
+    // Simulate checkout
+    const ok = await simulatedCheckout({ amount: budget, description: 'Promote listing (demo)' });
+    if(!ok) return;
+    // mark as boosted in localStorage
+    const lists = loadListings();
+    const item = lists.find(l=>l.id===id);
+    if(item){ item.boosted = true; item.lastPromotedAt = new Date().toISOString(); saveListings(lists); }
+    alert('Promotion simulated — listing marked as boosted in demo.');
+    location.href = 'shop.html';
+  });
+
+  updateSummary();
+</script>
+</body>
+</html>

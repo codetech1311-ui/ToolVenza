@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Tools</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link active" href="tools.html">Tools</a>
+      <a class="nav-link" href="sell.html">Sell</a>
+      <a class="nav-link" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container tools-page">
+    <section class="tools-hero">
+      <h1>All categories</h1>
+      <p class="muted">20 categories, each with dozens of tools. Click a box to explore listings in that category. Most-clicked tools appear at the top.</p>
+    </section>
+
+    <section class="panel">
+      <h3>Most clicked tools</h3>
+      <div id="most-clicked" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:10px"></div>
+    </section>
+
+    <section id="tools-grid" class="tools-grid"></section>
+  </main>
+
+  <footer class="footer muted">Demo data • Links either go direct or perform a Google search for the tool</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  // Helper: gather all listings (seed + local)
+  function getAllListings(){
+    const seeded = [];
+    for(const cid of (DATA.categories.map(c=>c.id))){
+      const arr = (DATA.tools[cid] || []).map(t => {
+        return { id: t.id || ('seed-'+cid+'-'+(t.name||t.title||'').toLowerCase().replace(/[^a-z0-9]+/g,'-')), title: t.title || t.name, url: t.url || ('https://www.google.com/search?q='+encodeURIComponent(t.name||t.title)), desc: t.desc, price: t.price||0, seller: t.seller||'' , category: cid, format: t.format||'built' };
+      });
+      seeded.push(...arr);
+    }
+    const user = (typeof loadListings === 'function') ? loadListings() : [];
+    // merge by id: user listings may override seeded id
+    const map = new Map();
+    seeded.forEach(x => map.set(x.id, x));
+    user.forEach(x => map.set(x.id, x));
+    return Array.from(map.values());
+  }
+
+  function renderMostClicked(){
+    const all = getAllListings();
+    all.sort((a,b) => getClickCount(b.id) - getClickCount(a.id));
+    const top = all.slice(0,8);
+    const container = document.getElementById('most-clicked');
+    container.innerHTML = '';
+    top.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'tool-card';
+      const price = (t.price && Number(t.price) > 0) ? ('$' + Number(t.price).toFixed(2)) : 'Free';
+      card.innerHTML = `<strong>${escapeHtml(t.title)}</strong><div class="muted small">${escapeHtml(t.desc||'')}</div><div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center"><div class="muted small">${getClickCount(t.id)} clicks</div><div><a class="btn small" href="${t.url}" target="_blank" rel="noopener noreferrer">Visit</a></div></div>`;
+      // attach click listener to Visit that uses trackAndVisit
+      const visit = card.querySelector('a');
+      visit.addEventListener('click', function(e){
+        e.preventDefault();
+        trackAndVisit(t.id, t.url);
+        // after track, re-render most clicked & grid to update ordering
+        setTimeout(()=>{ renderMostClicked(); renderGrid(); }, 100);
+      });
+      container.appendChild(card);
+    });
+  }
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+  function renderGrid(){
+    const grid = document.getElementById('tools-grid');
+    grid.innerHTML = '';
+    DATA.categories.forEach((cat, i) => {
+      const tools = DATA.tools[cat.id] || [];
+      // convert to normalized objects with id/title/url
+      const norm = tools.map(t => ({ id: t.id || ('seed-'+cat.id+'-'+(t.name||t.title||'').toLowerCase().replace(/[^a-z0-9]+/g,'-')), title: t.title || t.name, url: t.url || ('https://www.google.com/search?q='+encodeURIComponent(t.name||t.title)), desc: t.desc, price: t.price||0 }));
+      // include user listings in this category
+      const user = (typeof loadListings === 'function') ? loadListings().filter(l=>l.category===cat.id).map(x=>Object.assign({},x)) : [];
+      const combined = user.concat(norm);
+      // sort by click count descending
+      combined.sort((a,b) => getClickCount(b.id) - getClickCount(a.id));
+      const sample = combined[0] || { title:'Explore tools', desc:'Various tools', price:0, url:'https://www.google.com/search?q='+encodeURIComponent(cat.name) };
+      const visitUrl = sample.url;
+      const card = document.createElement('div');
+      card.className = 'tool-section-card';
+      const variant = i % 4;
+      let extraClass = '';
+      if(variant === 1) extraClass = 'glass';
+      if(variant === 2) extraClass = 'solid';
+      if(variant === 3) extraClass = 'outline';
+      card.innerHTML = `
+        <a class="section-link" href="category.html?cat=${encodeURIComponent(cat.id)}" aria-label="Explore ${cat.name}">
+          <header class="section-head ${extraClass}" style="--accent:${cat.color}">
+            <h3 class="section-title" style="color:var(--accent)">${cat.name}</h3>
+            <p class="muted small">${cat.followers.toLocaleString()} followers • ${combined.length} tools</p>
+          </header>
+          <div class="section-body">
+            <div class="sample-tool">
+              <div class="sample-top">
+                <strong class="tool-name">${escapeHtml(sample.title)}</strong>
+                <span class="tool-price">${(sample.price && sample.price>0)?('$'+sample.price.toFixed(2)):'Free'}</span>
+              </div>
+              <p class="muted tool-desc">${escapeHtml(sample.desc || '')}</p>
+            </div>
+          </div>
+        </a>
+        <div class="section-actions">
+          <a class="btn small" href="category.html?cat=${encodeURIComponent(cat.id)}">Explore</a>
+          <a class="btn outline small visit-sample" href="${visitUrl}" target="_blank" rel="noopener noreferrer">Visit</a>
+          <div style="margin-left:8px;color:var(--muted);font-size:13px">${getClickCount(sample.id||sample.title)} clicks</div>
+        </div>
+      `;
+      // attach click tracking to the Visit button we just created
+      setTimeout(()=>{ const v = card.querySelector('.visit-sample'); if(v){ v.addEventListener('click', function(e){ e.preventDefault(); trackAndVisit(sample.id || sample.title, visitUrl); setTimeout(()=>{ renderMostClicked(); renderGrid(); }, 100); }); } }, 10);
+      grid.appendChild(card);
+    });
+  }
+
+  // initial render
+  renderMostClicked();
+  renderGrid();
+
+  // expose a refresh hook for app.js -> other pages when clicks change
+  window.__refreshView = function(){ renderMostClicked(); renderGrid(); };
+</script>
+</body>
+</html>

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Sell</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="tools.html">Tools</a>
+      <a class="nav-link active" href="sell.html">Sell</a>
+      <a class="nav-link" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <h2>Publish a listing</h2>
+      <p class="muted">Provide a valid website URL for the AI tool so visitors can go there.</p>
+
+      <div class="form-row">
+        <label>Title</label>
+        <input id="title" placeholder="e.g. CaptionMaster" />
+      </div>
+
+      <div class="form-row">
+        <label>AI URL (website)</label>
+        <input id="ai-url" placeholder="https://example.com/tool" />
+        <div id="url-hint" class="muted small">Provide the official website or product page for your AI tool or prompt pack.</div>
+      </div>
+
+      <div class="form-row">
+        <label>Category</label>
+        <select id="category"></select>
+      </div>
+
+      <div class="form-row">
+        <label>Format</label>
+        <select id="format">
+          <option value="prompt">Prompt pack</option>
+          <option value="built">Built tool</option>
+        </select>
+      </div>
+
+      <div class="form-row">
+        <label>Price (USD)</label>
+        <input id="price" type="number" min="0" step="0.01" value="0" />
+      </div>
+
+      <div class="form-row">
+        <label>Short description</label>
+        <input id="desc" placeholder="One-line description" />
+      </div>
+
+      <div class="form-row">
+        <label>Your seller handle</label>
+        <input id="seller" placeholder="@you" />
+      </div>
+
+      <div class="form-row" style="display:flex;gap:8px;align-items:center">
+        <button id="publish" class="btn primary">Publish (local)</button>
+        <button id="preview" class="btn outline">Preview</button>
+        <div id="status" class="muted small" style="margin-left:10px"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted">Demo — listings are saved to your browser (export/import available).</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  // populate categories
+  const sel = document.getElementById('category');
+  DATA.categories.forEach(c=> sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+
+  function isValidUrl(s){
+    try{
+      const u = new URL(s);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    }catch(e){ return false; }
+  }
+
+  document.getElementById('preview').addEventListener('click', ()=>{
+    const summary = `Title: ${document.getElementById('title').value}\nURL: ${document.getElementById('ai-url').value}\nCategory: ${document.getElementById('category').value}\nFormat: ${document.getElementById('format').value}\nPrice: $${document.getElementById('price').value}\nDesc: ${document.getElementById('desc').value}`;
+    alert(summary);
+  });
+
+  document.getElementById('publish').addEventListener('click', async ()=>{
+    const title = document.getElementById('title').value.trim() || 'Untitled Tool';
+    const url = document.getElementById('ai-url').value.trim();
+    const category = document.getElementById('category').value;
+    const format = document.getElementById('format').value;
+    const price = parseFloat(document.getElementById('price').value) || 0;
+    const desc = document.getElementById('desc').value.trim() || '';
+    const seller = document.getElementById('seller').value.trim() || '@you';
+
+    if(!url || !isValidUrl(url)){
+      alert('Please enter a valid AI URL (include https://). This is required so buyers can visit your tool.');
+      return;
+    }
+
+    // create listing in localStorage
+    const lists = loadListings();
+    const id = 'u' + Date.now();
+    const listing = { id, title, url, category, format, price, desc, boosted:false, seller, created_at: new Date().toISOString() };
+    lists.push(listing);
+    saveListings(lists);
+    document.getElementById('status').textContent = 'Published — added to Your Shop.';
+    setTimeout(()=> location.href = 'shop.html', 900);
+  });
+</script>
+</body>
+</html>

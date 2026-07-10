@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Your Shop</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="tools.html">Tools</a>
+      <a class="nav-link" href="sell.html">Sell</a>
+      <a class="nav-link active" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="panel">
+      <h2>Your Shop</h2>
+      <div id="shop-summary" class="muted"></div>
+
+      <div style="display:flex;gap:10px;align-items:center;margin-top:12px">
+        <button id="export-btn" class="btn small outline">Export listings.txt</button>
+        <label class="btn small outline" style="cursor:pointer">
+          Import listings.txt
+          <input id="import-file" type="file" accept=".txt,.jsonl" style="display:none" />
+        </label>
+        <select id="import-mode" class="small" title="Import mode">
+          <option value="merge">Merge (default)</option>
+          <option value="replace">Replace</option>
+        </select>
+        <div class="muted small" style="margin-left:auto">Tip: export to edit or backup the JSONL file.</div>
+      </div>
+
+      <div id="shop-list" style="margin-top:14px"></div>
+    </section>
+  </main>
+
+  <footer class="footer muted">Demo — listings are saved to your browser unless you export/import the file.</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  function visitFor(listing){
+    if(listing && listing.url) return listing.url;
+    return 'https://www.google.com/search?q=' + encodeURIComponent(listing.title || 'AI tool');
+  }
+
+  function renderShop(){
+    const list = loadListings();
+    // sort by click count desc
+    list.sort((a,b) => getClickCount(b.id) - getClickCount(a.id));
+    document.getElementById('shop-summary').textContent = `Listings: ${list.length} • Commission: 0% • Demo mode`;
+    const holder = document.getElementById('shop-list');
+    holder.innerHTML = '';
+    if(list.length === 0){
+      holder.innerHTML = '<p class="muted">You have no listings. Publish one via Sell → Publish.</p>';
+      return;
+    }
+
+    list.forEach(l=>{
+      const cat = getCategory(l.category);
+      const price = (l.price && l.price>0) ? ('$'+(l.price).toFixed(2)) : 'Free';
+      const boostedBadge = l.boosted ? '<span style="color:#FFB86B;margin-left:8px;font-weight:700">Boosted</span>' : '';
+      const clicks = getClickCount(l.id);
+      const row = document.createElement('div');
+      row.className = 'shop-row';
+      row.innerHTML = `
+        <div class="shop-left">
+          <div style="display:flex;flex-direction:column">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div class="shop-title">${l.title}</div>
+              <div class="shop-meta" style="background:${cat.color};padding:6px 8px;border-radius:8px;color:#071026;font-weight:700">${cat.name}</div>
+              ${boostedBadge}
+            </div>
+            <div class="shop-meta" style="margin-top:8px">${l.desc || ''}</div>
+            <div class="shop-meta" style="margin-top:8px">Price: <strong>${price}</strong> • Seller: <strong>${l.seller || '@you'}</strong></div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <a class="btn small outline visit-btn" href="${visitFor(l)}" target="_blank" rel="noopener noreferrer">Visit</a>
+          <a class="btn small" href="promote.html?id=${encodeURIComponent(l.id)}">Promote</a>
+          <button class="btn small ghost" data-id="${l.id}" onclick="deleteListing('${l.id}')">Delete</button>
+          <div style="margin-left:8px;color:var(--muted);font-size:13px">${clicks} clicks</div>
+        </div>
+      `;
+      // attach tracking to visit-btn
+      setTimeout(()=>{ const v = row.querySelector('.visit-btn'); if(v){ v.addEventListener('click', function(e){ e.preventDefault(); trackAndVisit(l.id, visitFor(l)); setTimeout(()=> renderShop(), 120); }); } }, 10);
+      holder.appendChild(row);
+    });
+  }
+
+  function deleteListing(id){
+    if(!confirm('Delete listing? This removes it from your browser storage.')) return;
+    let list = loadListings();
+    list = list.filter(x=> x.id !== id);
+    saveListings(list);
+    renderShop();
+  }
+
+  document.getElementById('export-btn').addEventListener('click', ()=> exportListings());
+  document.getElementById('import-file').addEventListener('change', async (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const mode = document.getElementById('import-mode').value || 'merge';
+    try{
+      const res = await importListingsFile(file, mode);
+      alert(`Import complete: ${res.added} items added, ${res.skipped} skipped.`);
+      renderShop();
+    }catch(err){
+      alert('Import failed: ' + (err && err.message ? err.message : err));
+    } finally {
+      e.target.value = '';
+    }
+  });
+
+  // initial render
+  renderShop();
+
+  // expose refresh for app.js
+  window.__refreshView = renderShop;
+</script>
+</body>
+</html>

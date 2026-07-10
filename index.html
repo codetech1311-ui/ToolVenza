@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ToolVenza — Home</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark">
+  <header class="nav">
+    <div class="nav-left">
+      <a href="index.html" class="logo">ToolVenza <span class="logo-sub">— tools marketplace</span></a>
+    </div>
+    <nav class="nav-right">
+      <a class="nav-link" href="index.html">Home</a>
+      <a class="nav-link" href="tools.html">Tools</a>
+      <a class="nav-link" href="sell.html">Sell</a>
+      <a class="nav-link" href="shop.html">Your Shop</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <div class="hero-inner">
+        <h1 class="title">ToolVenza</h1>
+        <h3>AI Botique</h3>
+        <p class="lead">Discover the best AI tools — chatbots, image generators, audio, code helpers, and more. Built tools & prompt packs. 0% commission for creators (demo).</p>
+        <div class="cta-row">
+          <a class="btn primary" href="tools.html">Browse Tools</a>
+          <a class="btn outline" href="sell.html">Sell a Tool</a>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden>
+        <svg width="420" height="260" viewBox="0 0 420 260" fill="none" xmlns="http://www.w3.org/2000/svg" class="hero-svg">
+          <rect x="0" y="0" width="420" height="260" rx="16" fill="url(#g)"/>
+          <defs>
+            <linearGradient id="g" x1="0" x2="1">
+              <stop offset="0" stop-color="#10131a" stop-opacity="0.7"/>
+              <stop offset="1" stop-color="#19202a" stop-opacity="0.9"/>
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="feature">
+        <h3>20 categories</h3>
+        <p class="muted">All major AI tool categories in one place.</p>
+      </div>
+      <div class="feature">
+        <h3>Promote & boost</h3>
+        <p class="muted">Simulated promotes let you demo paid reach into category audiences.</p>
+      </div>
+      <div class="feature">
+        <h3>Sell with 0% commission</h3>
+        <p class="muted">Publish as a creator — demo payments are simulated.</p>
+      </div>
+    </section>
+
+    <section class="preview-cats">
+      <h2>Popular categories</h2>
+      <div id="home-cat-grid" class="cat-grid"></div>
+    </section>
+  </main>
+
+  <footer class="footer muted">Demo • 0% commission • All data local to your browser</footer>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script>
+  // Render top categories on home
+  const homeGrid = document.getElementById('home-cat-grid');
+  const topCats = DATA.categories.slice().sort((a,b)=>b.followers-a.followers).slice(0,6);
+  topCats.forEach(c=>{
+    const tools = DATA.tools[c.id] || [];
+    const sample = tools[0] || { name: 'Various', price: 0, desc: 'Explore tools' };
+    const box = document.createElement('a');
+    box.className = 'home-cat';
+    box.href = `category.html?cat=${encodeURIComponent(c.id)}`;
+    box.innerHTML = `
+      <div class="home-cat-top" style="border-color:${c.color}">
+        <h3 style="color:${c.color}">${c.name}</h3>
+        <p class="muted small">${c.followers.toLocaleString()} followers • ${tools.length} tools</p>
+      </div>
+      <div class="home-cat-body">
+        <strong class="sample-name">${sample.name}</strong>
+        <p class="muted small">${sample.desc || ''}</p>
+      </div>
+    `;
+    homeGrid.appendChild(box);
+  });
+</script>
+</body>
+</html>
