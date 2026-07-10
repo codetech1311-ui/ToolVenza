@@ -64,6 +64,10 @@
 <script src="data.js"></script>
 <script src="app.js"></script>
 <script>
+  // Point this at your deployed backend (e.g. Render/Railway URL).
+  // GitHub Pages only serves static files, so server.js must be hosted elsewhere.
+  const BACKEND_URL = 'https://toolvenza-backend.onrender.com';
+
   function findListing(id){ return loadListings().find(x=>x.id===id) }
   function getParam(name){ return new URLSearchParams(location.search).get(name) }
 
@@ -131,17 +135,74 @@
     if(!id){ alert('Choose a listing to promote.'); return; }
     const budget = Math.max(0, parseFloat(budgetInput.value) || 0);
     if(budget <= 0){ alert('Enter a budget greater than $0.'); return; }
-    // Simulate checkout
-    const ok = await simulatedCheckout({ amount: budget, description: 'Promote listing (demo)' });
-    if(!ok) return;
-    // mark as boosted in localStorage
-    const lists = loadListings();
-    const item = lists.find(l=>l.id===id);
-    if(item){ item.boosted = true; item.lastPromotedAt = new Date().toISOString(); saveListings(lists); }
-    alert('Promotion simulated — listing marked as boosted in demo.');
-    location.href = 'shop.html';
+    const listing = findListing(id);
+
+    const btn = document.getElementById('pay-promote');
+    btn.disabled = true;
+    btn.textContent = 'Redirecting to checkout…';
+
+    try{
+      const resp = await fetch(`${BACKEND_URL}/create-checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: id,
+          listingTitle: listing ? listing.title : id,
+          amountUsd: budget,
+          type: 'promote'
+        })
+      });
+      const data = await resp.json();
+      if(!resp.ok || !data.url){
+        throw new Error(data.error || 'Could not start checkout.');
+      }
+      // Send the browser to Stripe's hosted checkout page
+      window.location.href = data.url;
+    }catch(err){
+      alert('Payment could not be started: ' + err.message + '\n\nMake sure the Stripe backend (server.js) is running and BACKEND_URL is correct.');
+      btn.disabled = false;
+      btn.textContent = 'Simulate & Mark Boosted';
+    }
   });
 
+  // Handle the browser returning from Stripe Checkout
+  async function handleReturnFromStripe(){
+    const success = getParam('success');
+    const canceled = getParam('canceled');
+    const sessionId = getParam('session_id');
+    const returnedId = getParam('id');
+
+    if(canceled){
+      alert('Payment canceled — no charge was made.');
+      history.replaceState({}, '', 'promote.html');
+      return;
+    }
+
+    if(success && sessionId){
+      try{
+        const resp = await fetch(`${BACKEND_URL}/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+        const data = await resp.json();
+        if(data.paid && data.listingId){
+          const lists = loadListings();
+          const item = lists.find(l=>l.id===data.listingId);
+          if(item){
+            item.boosted = true;
+            item.lastPromotedAt = new Date().toISOString();
+            saveListings(lists);
+          }
+          alert('Payment confirmed — listing marked as boosted!');
+        } else {
+          alert('We could not confirm this payment. If you were charged, contact support.');
+        }
+      }catch(err){
+        alert('Could not verify payment with the server: ' + err.message);
+      }
+      history.replaceState({}, '', 'promote.html');
+      location.href = 'shop.html';
+    }
+  }
+
+  handleReturnFromStripe();
   updateSummary();
 </script>
 </body>
