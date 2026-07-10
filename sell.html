@@ -22,7 +22,7 @@
   <main class="container">
     <section class="panel">
       <h2>Publish a listing</h2>
-      <p class="muted">Provide a valid website URL for the AI tool so visitors can go there.</p>
+      <p class="muted">Provide a valid website URL for the AI tool so visitors can go there. Publishing costs a one-time $1.99 listing fee.</p>
 
       <div class="form-row">
         <label>Title</label>
@@ -64,7 +64,7 @@
       </div>
 
       <div class="form-row" style="display:flex;gap:8px;align-items:center">
-        <button id="publish" class="btn primary">Publish (local)</button>
+        <button id="publish" class="btn primary">Publish — Pay $1.99</button>
         <button id="preview" class="btn outline">Preview</button>
         <div id="status" class="muted small" style="margin-left:10px"></div>
       </div>
@@ -76,6 +76,11 @@
 <script src="data.js"></script>
 <script src="app.js"></script>
 <script>
+  // Point this at your deployed backend (e.g. Render/Railway URL).
+  const BACKEND_URL = 'https://toolvenza-backend.onrender.com;
+  const LISTING_FEE_USD = 1.99;
+  const PENDING_KEY = 'ab_pending_listing_v1';
+
   // populate categories
   const sel = document.getElementById('category');
   DATA.categories.forEach(c=> sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
@@ -106,15 +111,83 @@
       return;
     }
 
-    // create listing in localStorage
-    const lists = loadListings();
     const id = 'u' + Date.now();
     const listing = { id, title, url, category, format, price, desc, boosted:false, seller, created_at: new Date().toISOString() };
-    lists.push(listing);
-    saveListings(lists);
-    document.getElementById('status').textContent = 'Published — added to Your Shop.';
-    setTimeout(()=> location.href = 'shop.html', 900);
+
+    // stash the listing locally; it only gets saved for real once payment is confirmed
+    localStorage.setItem(PENDING_KEY, JSON.stringify(listing));
+
+    const btn = document.getElementById('publish');
+    btn.disabled = true;
+    const status = document.getElementById('status');
+    status.textContent = `Redirecting to checkout for $${LISTING_FEE_USD.toFixed(2)} listing fee…`;
+
+    try{
+      const resp = await fetch(`${BACKEND_URL}/create-checkout-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listingId: id,
+          listingTitle: title,
+          amountUsd: LISTING_FEE_USD,
+          type: 'listing',
+          returnPage: 'sell.html'
+        })
+      });
+      const data = await resp.json();
+      if(!resp.ok || !data.url){
+        throw new Error(data.error || 'Could not start checkout.');
+      }
+      window.location.href = data.url;
+    }catch(err){
+      localStorage.removeItem(PENDING_KEY);
+      alert('Payment could not be started: ' + err.message + '\n\nMake sure the Stripe backend is running and BACKEND_URL is correct.');
+      btn.disabled = false;
+      status.textContent = '';
+    }
   });
+
+  // Handle the browser returning from Stripe Checkout
+  async function handleReturnFromStripe(){
+    const params = new URLSearchParams(location.search);
+    const success = params.get('success');
+    const canceled = params.get('canceled');
+    const sessionId = params.get('session_id');
+
+    if(canceled){
+      localStorage.removeItem(PENDING_KEY);
+      alert('Payment canceled — your listing was not published.');
+      history.replaceState({}, '', 'sell.html');
+      return;
+    }
+
+    if(success && sessionId){
+      document.getElementById('status').textContent = 'Confirming payment…';
+      try{
+        const resp = await fetch(`${BACKEND_URL}/verify-session?session_id=${encodeURIComponent(sessionId)}`);
+        const data = await resp.json();
+        const pendingRaw = localStorage.getItem(PENDING_KEY);
+        const pending = pendingRaw ? JSON.parse(pendingRaw) : null;
+
+        if(data.paid && pending && data.listingId === pending.id){
+          const lists = loadListings();
+          lists.push(pending);
+          saveListings(lists);
+          localStorage.removeItem(PENDING_KEY);
+          document.getElementById('status').textContent = 'Payment confirmed — listing published!';
+          setTimeout(()=> location.href = 'shop.html', 900);
+        } else {
+          alert('We could not confirm this payment. Your listing was not published. If you were charged, contact support.');
+          localStorage.removeItem(PENDING_KEY);
+        }
+      }catch(err){
+        alert('Could not verify payment with the server: ' + err.message);
+      }
+      history.replaceState({}, '', 'sell.html');
+    }
+  }
+
+  handleReturnFromStripe();
 </script>
 </body>
 </html>
